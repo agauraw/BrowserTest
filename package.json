@@ -1,0 +1,14 @@
+{
+  "name": "playwright-skill-recorder",
+  "version": "1.0.0",
+  "description": "Record and replay browser interactions as named skills, with file upload and dropdown support",
+  "scripts": {
+    "record": "node recorder.js",
+    "play": "node player.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "playwright": "^1.45.0",
+    "ws": "^8.21.0"
+  }
+}

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Playwright Skill Recorder</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #f0f2f5;
+      --hdr:         #1e293b;
+      --hdr-txt:     #f1f5f9;
+      --bot-bg:      #ffffff;
+      --bot-txt:     #1e293b;
+      --user-bg:     #2563eb;
+      --user-txt:    #ffffff;
+      --step-bg:     #1e293b;
+      --step-txt:    #94a3b8;
+      --step-hi:     #38bdf8;
+      --err-bg:      #fef2f2;
+      --err-txt:     #dc2626;
+      --err-bd:      #fca5a5;
+      --ok-bg:       #f0fdf4;
+      --ok-txt:      #15803d;
+      --ok-bd:       #86efac;
+      --info-txt:    #64748b;
+      --code-bg:     #0d1117;
+      --code-txt:    #e6edf3;
+      --input-bg:    #ffffff;
+      --send-bg:     #2563eb;
+      --radius:      10px;
+      --shadow:      0 1px 4px rgba(0,0,0,.12);
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      background: var(--hdr);
+      color: var(--hdr-txt);
+      padding: 0 20px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,.3);
+      z-index: 10;
+    }
+    .hdr-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: -.01em;
+    }
+    .hdr-left svg { opacity: .85; }
+    .hdr-right { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    #status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      font-size: 11px;
+      transition: background .3s, color .3s;
+      background: rgba(255,255,255,.12);
+    }
+    #status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #4ade80;
+      transition: background .3s;
+    }
+    #status-badge.recording { background: rgba(239,68,68,.25); }
+    #status-badge.recording #status-dot { background: #f87171; animation: blink 1s ease-in-out infinite; }
+    #status-badge.playing   { background: rgba(59,130,246,.25); }
+    #status-badge.playing   #status-dot { background: #60a5fa; animation: blink .8s ease-in-out infinite; }
+    #status-badge.saving,
+    #status-badge.input     { background: rgba(251,191,36,.2); }
+    #status-badge.saving #status-dot,
+    #status-badge.input  #status-dot { background: #fbbf24; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ── Messages ────────────────────────────────────────────────────────── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 6px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    .row { display: flex; align-items: flex-end; gap: 8px; max-width: 720px; animation: fadein .18s ease; }
+    .row.user { align-self: flex-end; flex-direction: row-reverse; }
+    .row.bot, .row.error, .row.success, .row.info { align-self: flex-start; }
+    .row.step, .row.code { align-self: stretch; max-width: 100%; }
+
+    @keyframes fadein { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+    .avatar {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: var(--hdr);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .bubble {
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      line-height: 1.55;
+      font-size: 13.5px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-shadow: var(--shadow);
+    }
+    .row.bot    .bubble { background: var(--bot-bg); color: var(--bot-txt); border-bottom-left-radius: 3px; }
+    .row.user   .bubble { background: var(--user-bg); color: var(--user-txt); border-bottom-right-radius: 3px; }
+    .row.error  .bubble { background: var(--err-bg); color: var(--err-txt); border-left: 3px solid var(--err-bd); border-radius: 0 var(--radius) var(--radius) 0; }
+    .row.success .bubble { background: var(--ok-bg); color: var(--ok-txt); border-left: 3px solid var(--ok-bd); border-radius: 0 var(--radius) var(--radius) 0; }
+    .row.info   .bubble { background: transparent; color: var(--info-txt); font-size: 12.5px; padding: 2px 4px; box-shadow: none; }
+
+    /* Step rows */
+    .step-block {
+      background: var(--step-bg);
+      border-radius: var(--radius);
+      padding: 8px 14px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 12px;
+      color: var(--step-txt);
+      line-height: 1.6;
+      letter-spacing: .01em;
+      width: 100%;
+      box-shadow: var(--shadow);
+    }
+    .step-block .step-num { color: #475569; margin-right: 4px; }
+    .step-type { color: var(--step-hi); font-weight: 600; display: inline-block; min-width: 68px; }
+    .step-sep  { color: #475569; margin: 0 4px; }
+    .step-val  { color: #a5f3fc; }
+
+    /* Code block */
+    .code-block {
+      background: var(--code-bg);
+      border-radius: var(--radius);
+      overflow: hidden;
+      width: 100%;
+      box-shadow: var(--shadow);
+    }
+    .code-bar {
+      background: #161b22;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #8b949e;
+    }
+    .copy-btn {
+      background: #30363d;
+      color: #8b949e;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .copy-btn:hover { background: #388bfd; color: #fff; border-color: #388bfd; }
+    .code-block pre {
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--code-txt);
+      white-space: pre;
+    }
+
+    /* ── Input bar ───────────────────────────────────────────────────────── */
+    #input-bar {
+      background: var(--input-bg);
+      border-top: 1px solid #e2e8f0;
+      padding: 12px 16px;
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    #cmd-input {
+      flex: 1;
+      border: 1px solid #e2e8f0;
+      border-radius: 24px;
+      padding: 10px 18px;
+      font-size: 13.5px;
+      outline: none;
+      background: #f8fafc;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    #cmd-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); background: #fff; }
+    #cmd-input::placeholder { color: #94a3b8; }
+    #send-btn {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      background: var(--send-bg);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background .15s, transform .1s;
+    }
+    #send-btn:hover  { background: #1d4ed8; }
+    #send-btn:active { transform: scale(.93); }
+    #send-btn svg { width: 18px; height: 18px; }
+
+    /* quick-command chips */
+    #chips {
+      display: flex;
+      gap: 6px;
+      padding: 8px 16px 0;
+      flex-wrap: wrap;
+    }
+    .chip {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 3px 11px;
+      font-size: 12px;
+      color: #475569;
+      cursor: pointer;
+      transition: background .12s, color .12s, border-color .12s;
+      user-select: none;
+    }
+    .chip:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-left">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
+      <line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/>
+      <line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>
+    </svg>
+    Playwright Skill Recorder
+  </div>
+  <div class="hdr-right">
+    <div id="status-badge" class="ready">
+      <span id="status-dot"></span>
+      <span id="status-label">Ready</span>
+    </div>
+  </div>
+</header>
+
+<div id="messages"></div>
+
+<div id="chips">
+  <span class="chip" data-cmd="list">list</span>
+  <span class="chip" data-cmd="help">help</span>
+  <span class="chip" data-cmd="stop">stop</span>
+</div>
+
+<div id="input-bar">
+  <input id="cmd-input" type="text" placeholder="Type a command, e.g.  record my-skill https://example.com" autocomplete="off" spellcheck="false" />
+  <button id="send-btn" title="Send (Enter)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+    </svg>
+  </button>
+</div>
+
+<script>
+  const messagesEl  = document.getElementById('messages');
+  const inputEl     = document.getElementById('cmd-input');
+  const sendBtn     = document.getElementById('send-btn');
+  const statusBadge = document.getElementById('status-badge');
+  const statusLabel = document.getElementById('status-label');
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────
+  let ws;
+
+  function connect() {
+    ws = new WebSocket(`ws://${location.host}`);
+    ws.onmessage = e => {
+      try { handle(JSON.parse(e.data)); } catch { /* ignore malformed */ }
+    };
+    ws.onclose = () => {
+      appendMessage('error', 'Connection lost. Reload the page to reconnect.');
+      setStatus('ready');
+      setTimeout(connect, 3000);
+    };
+  }
+  connect();
+
+  // ── Render messages ───────────────────────────────────────────────────────
+  function handle({ role, text, status }) {
+    if (status) setStatus(status);
+    appendMessage(role, text);
+  }
+
+  function appendMessage(role, text) {
+    if (!text && role !== 'info') return;
+    let el;
+
+    if (role === 'step') {
+      el = buildStep(text);
+    } else if (role === 'code') {
+      el = buildCode(text);
+    } else if (role === 'user') {
+      el = buildBubble('user', null, text);
+    } else if (role === 'bot') {
+      el = buildBubble('bot', '🤖', text);
+    } else if (role === 'error') {
+      el = buildBubble('error', null, text);
+    } else if (role === 'success') {
+      el = buildBubble('success', null, text);
+    } else if (role === 'info') {
+      el = buildBubble('info', null, text);
+    } else {
+      el = buildBubble('bot', null, text);
+    }
+
+    messagesEl.appendChild(el);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function buildBubble(role, avatarText, text) {
+    const row = document.createElement('div');
+    row.className = `row ${role}`;
+
+    if (avatarText) {
+      const av = document.createElement('div');
+      av.className = 'avatar';
+      av.textContent = avatarText;
+      row.appendChild(av);
+    }
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    return row;
+  }
+
+  function buildStep(raw) {
+    // Parse:  "[  3]  navigate  → https://..."
+    const row = document.createElement('div');
+    row.className = 'row step';
+
+    const block = document.createElement('div');
+    block.className = 'step-block';
+
+    // Try to colour the step line
+    const m = raw.match(/^(\[[\s\d/]+\])\s+(\w+)\s+(.*)/);
+    if (m) {
+      const num  = document.createElement('span');
+      num.className = 'step-num';
+      num.textContent = m[1];
+
+      const type = document.createElement('span');
+      type.className = 'step-type';
+      type.textContent = m[2];
+
+      const rest = document.createTextNode(' ' + m[3]);
+
+      block.appendChild(num);
+      block.appendChild(type);
+      block.appendChild(rest);
+    } else {
+      block.textContent = raw;
+    }
+
+    row.appendChild(block);
+    return row;
+  }
+
+  function buildCode(src) {
+    const row = document.createElement('div');
+    row.className = 'row code';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'code-block';
+
+    const bar = document.createElement('div');
+    bar.className = 'code-bar';
+    bar.innerHTML = '<span>Generated Playwright Code</span>';
+
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.textContent = 'Copy';
+    btn.onclick = () => {
+      navigator.clipboard.writeText(src).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1800);
+      });
+    };
+    bar.appendChild(btn);
+
+    const pre = document.createElement('pre');
+    pre.textContent = src;
+
+    wrap.appendChild(bar);
+    wrap.appendChild(pre);
+    row.appendChild(wrap);
+    return row;
+  }
+
+  // ── Status bar ────────────────────────────────────────────────────────────
+  const STATUS_LABELS = {
+    ready:     'Ready',
+    recording: 'Recording',
+    playing:   'Playing',
+    saving:    'Saving…',
+    input:     'Waiting for input',
+  };
+
+  function setStatus(s) {
+    statusBadge.className = s;
+    statusLabel.textContent = STATUS_LABELS[s] || s;
+  }
+
+  // ── Send ──────────────────────────────────────────────────────────────────
+  function send() {
+    const text = inputEl.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    appendMessage('user', text);
+    ws.send(JSON.stringify({ text }));
+    inputEl.value = '';
+    inputEl.focus();
+  }
+
+  sendBtn.addEventListener('click', send);
+  inputEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) send(); });
+
+  // ── Quick-command chips ───────────────────────────────────────────────────
+  document.getElementById('chips').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    const cmd = chip.dataset.cmd;
+    if (cmd) { inputEl.value = cmd; inputEl.focus(); }
+  });
+
+  inputEl.focus();
+</script>
+</body>
+</html>
