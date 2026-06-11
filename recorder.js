@@ -83,12 +83,34 @@ function recorderInitScript() {
       return `input[placeholder="${placeholder.replace(/"/g, '\\"')}"]`;
     }
 
-    // CSS path fallback
+    // Label association — find <label for="id"> or wrapping <label>
+    if (['input', 'select', 'textarea'].includes(tag)) {
+      const labelEl = el.id
+        ? document.querySelector(`label[for="${el.id}"]`)
+        : el.closest('label');
+      if (labelEl) {
+        const labelText = labelEl.textContent.trim().slice(0, 60).replace(/"/g, '\\"');
+        if (labelText) return `${tag}[aria-labelledby],label:text("${labelText}") ~ ${tag}, label:text("${labelText}") + ${tag}`;
+      }
+    }
+
+    // aria-labelledby — resolve the referenced element's text
+    const labelledBy = el.getAttribute('aria-labelledby');
+    if (labelledBy) {
+      const labelTarget = document.getElementById(labelledBy);
+      if (labelTarget) {
+        const t = labelTarget.textContent.trim().slice(0, 60).replace(/"/g, '\\"');
+        if (t) return `${tag}[aria-labelledby="${labelledBy}"]`;
+      }
+    }
+
+    // CSS path fallback — climb up to nearest anchored ancestor, include nth index
     const parts = [];
     let cur = el;
-    for (let d = 0; cur && cur !== document.documentElement && d < 5; d++) {
+    for (let d = 0; cur && cur !== document.documentElement && d < 6; d++) {
       let seg = cur.tagName.toLowerCase();
-      if (cur.id && !/^\d/.test(cur.id) && cur.id.length < 60) {
+      if (cur.id && !/^\d/.test(cur.id) && cur.id.length < 60 &&
+          !/[a-f0-9]{8}-[a-f0-9]{4}/.test(cur.id)) {
         parts.unshift('#' + cur.id);
         break;
       }
@@ -100,6 +122,15 @@ function recorderInitScript() {
       cur = cur.parentElement;
     }
     return parts.join(' > ');
+  }
+
+  // Returns the 0-based index of el among all elements matching the same selector
+  function getNthIndex(el, selector) {
+    try {
+      const all = Array.from(document.querySelectorAll(selector));
+      const idx = all.indexOf(el);
+      return idx > 0 ? idx : 0;  // 0 means "first", skip storing it
+    } catch { return 0; }
   }
 
   const TEXT_TYPES = new Set(['text', 'email', 'password', 'search', 'url', 'tel',
@@ -120,9 +151,11 @@ function recorderInitScript() {
     const selector = getSelector(el);
     if (!selector) return;
     tick();
+    const nth = getNthIndex(el, selector);
     window.__recordStep({
       type: 'click',
       selector,
+      ...(nth > 0 && { nth }),
       tag: el.tagName.toLowerCase(),
       text: (el.textContent || '').trim().slice(0, 60)
     });
@@ -149,7 +182,8 @@ function recorderInitScript() {
 
     if (el.value && el.value !== prev) {
       tick();
-      window.__recordStep({ type: 'fill', selector, value: el.value });
+      const nth = getNthIndex(el, selector);
+      window.__recordStep({ type: 'fill', selector, ...(nth > 0 && { nth }), value: el.value });
     }
   }, true);
 
@@ -182,10 +216,12 @@ function recorderInitScript() {
     if (el.tagName === 'SELECT') {
       const selector = getSelector(el);
       const opt = el.selectedOptions[0];
+      const nth = getNthIndex(el, selector);
       tick();
       window.__recordStep({
         type: 'select',
         selector,
+        ...(nth > 0 && { nth }),
         value: el.value,
         label: opt ? opt.text.trim() : '',
         index: el.selectedIndex
@@ -208,8 +244,9 @@ function recorderInitScript() {
 
     if (el.tagName === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio')) {
       const selector = getSelector(el);
+      const nth = getNthIndex(el, selector);
       tick();
-      window.__recordStep({ type: 'check', selector, checked: el.checked, value: el.value });
+      window.__recordStep({ type: 'check', selector, ...(nth > 0 && { nth }), checked: el.checked, value: el.value });
     }
   }, true);
 }
